@@ -4,14 +4,12 @@ description = "Kotlin NoArg Compiler Plugin"
 apply { plugin("kotlin") }
 
 dependencies {
-    testRuntime(intellijDep())
-
     compileOnly(project(":compiler:frontend"))
     compileOnly(project(":compiler:frontend.java"))
     compileOnly(project(":compiler:backend"))
     compileOnly(project(":compiler:util"))
     compileOnly(project(":compiler:plugin-api"))
-    compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
+    compile(intellijCoreDep()) { includeJars("intellij-core") }
     compileOnly(intellijDep()) { includeJars("asm-all") }
     runtime(projectRuntimeJar(":kotlin-compiler"))
     runtime(projectDist(":kotlin-stdlib"))
@@ -43,4 +41,7 @@ ideaPlugin {
 
 projectTest {
     workingDir = rootDir
+    doFirst {
+        systemProperty("idea.home.path", intellijRootDir().canonicalPath)
+    }
 }

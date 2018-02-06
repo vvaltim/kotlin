@@ -4,11 +4,9 @@ description = "Kotlin AllOpen Compiler Plugin"
 apply { plugin("kotlin") }
 
 dependencies {
-    testRuntime(intellijDep())
-
     compileOnly(project(":compiler:plugin-api"))
     compileOnly(project(":compiler:frontend"))
-    compileOnly(intellijCoreDep()) { includeJars("intellij-core") }
+    compile(intellijCoreDep()) { includeJars("intellij-core") }
 
     runtime(projectRuntimeJar(":kotlin-compiler"))
     runtime(projectDist(":kotlin-stdlib"))
@@ -40,4 +38,7 @@ ideaPlugin {
 
 projectTest {
     workingDir = rootDir
+    doFirst {
+        systemProperty("idea.home.path", intellijRootDir().canonicalPath)
+    }
 }
