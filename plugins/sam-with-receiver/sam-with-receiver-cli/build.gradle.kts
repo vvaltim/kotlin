@@ -46,6 +46,6 @@ ideaPlugin {
 }
 
 projectTest {
-    dependsOn(":prepare:mock-runtime-for-test:dist")
+    dependsOn(":kotlin-stdlib:jvm-minimal-for-test:dist")
     workingDir = rootDir
 }
