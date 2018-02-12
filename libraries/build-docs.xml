@@ -70,6 +70,7 @@
             <sourceRoot path="../core/builtins/src" platforms="JS"/>
 
             <sourceRoot path="stdlib/js/src" platforms="JS"/>
+            <sourceRoot path="../js/js.libraries/src/core/generated" platforms="JS"/>
             <sourceRoot path="${js.stdlib.common.src.path}" platforms="JS"/>
 
             <sourcelink path=".." url="http://github.com/JetBrains/kotlin/blob/${github.revision}" linesuffix="#L"/>
