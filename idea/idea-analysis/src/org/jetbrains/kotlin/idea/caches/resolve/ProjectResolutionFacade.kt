@@ -62,8 +62,9 @@ internal class ProjectResolutionFacade(
             globalContext,
             settings,
             syntheticFiles = syntheticFiles,
-            delegateResolver = delegateResolverForProject, moduleFilter = moduleFilter,
-            allModules = allModules,
+            delegateResolver = delegateResolverForProject,
+            moduleFilter = moduleFilter,
+            allModules = allModules ?: collectAllModuleInfosFromIdeaModel(project),
             providedBuiltIns = delegateResolverProvider?.builtIns,
             dependencies = dependencies,
             invalidateOnOOCB = invalidateOnOOCB
