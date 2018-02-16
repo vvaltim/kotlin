@@ -70,27 +70,27 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
     override fun getSuppressionCache(): KotlinSuppressCache = kotlinSuppressCache.value
 
     private val globalFacadesPerPlatformAndSdk: SLRUCache<PlatformAnalysisSettings, GlobalFacade> =
-            object : SLRUCache<PlatformAnalysisSettings, GlobalFacade>(2 * 3 * 2, 2 * 3 * 2) {
-                override fun createValue(settings: PlatformAnalysisSettings): GlobalFacade {
-                    return GlobalFacade(settings)
-                }
+        object : SLRUCache<PlatformAnalysisSettings, GlobalFacade>(2 * 3 * 2, 2 * 3 * 2) {
+            override fun createValue(settings: PlatformAnalysisSettings): GlobalFacade {
+                return GlobalFacade(settings)
             }
+        }
 
 
     private val facadesForScriptDependencies: SLRUCache<ScriptModuleInfo, ProjectResolutionFacade> =
-            object : SLRUCache<ScriptModuleInfo, ProjectResolutionFacade>(2, 3) {
-                override fun createValue(scriptModuleInfo: ScriptModuleInfo?): ProjectResolutionFacade {
-                    return createFacadeForScriptDependencies(ScriptDependenciesModuleInfo(project, scriptModuleInfo))
-                }
+        object : SLRUCache<ScriptModuleInfo, ProjectResolutionFacade>(2, 3) {
+            override fun createValue(scriptModuleInfo: ScriptModuleInfo?): ProjectResolutionFacade {
+                return createFacadeForScriptDependencies(ScriptDependenciesModuleInfo(project, scriptModuleInfo))
             }
+        }
 
     private fun getFacadeForScriptDependencies(scriptModuleInfo: ScriptModuleInfo) = synchronized(facadesForScriptDependencies) {
         facadesForScriptDependencies.get(scriptModuleInfo)
     }
 
     private fun createFacadeForScriptDependencies(
-            dependenciesModuleInfo: ScriptDependenciesModuleInfo,
-            syntheticFiles: Collection<KtFile> = listOf()
+        dependenciesModuleInfo: ScriptDependenciesModuleInfo,
+        syntheticFiles: Collection<KtFile> = listOf()
     ): ProjectResolutionFacade {
         val sdk = findJdk(dependenciesModuleInfo.scriptModuleInfo?.externalDependencies, project)
         val platform = JvmPlatform // TODO: Js scripts?
@@ -98,18 +98,18 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
         val sdkFacade = GlobalFacade(facadeKey).facadeForSdk
         val globalContext = sdkFacade.globalContext.contextWithNewLockAndCompositeExceptionTracker()
         return ProjectResolutionFacade(
-                "facadeForScriptDependencies", "dependencies of scripts",
-                project, globalContext, facadeKey,
-                reuseDataFrom = sdkFacade,
-                allModules = dependenciesModuleInfo.dependencies(),
-                //TODO: provide correct trackers
-                dependencies = listOf(
-                        LibraryModificationTracker.getInstance(project),
-                        ProjectRootModificationTracker.getInstance(project),
-                        ScriptDependenciesModificationTracker.getInstance(project)
-                ),
-                moduleFilter = { it == dependenciesModuleInfo },
-                syntheticFiles = syntheticFiles
+            "facadeForScriptDependencies", "dependencies of scripts",
+            project, globalContext, facadeKey,
+            reuseDataFrom = sdkFacade,
+            allModules = dependenciesModuleInfo.dependencies(),
+            //TODO: provide correct trackers
+            dependencies = listOf(
+                LibraryModificationTracker.getInstance(project),
+                ProjectRootModificationTracker.getInstance(project),
+                ScriptDependenciesModificationTracker.getInstance(project)
+            ),
+            moduleFilter = { it == dependenciesModuleInfo },
+            syntheticFiles = syntheticFiles
         )
     }
 
@@ -117,51 +117,51 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
     private inner class GlobalFacade(settings: PlatformAnalysisSettings) {
         private val sdkContext = GlobalContext()
         val facadeForSdk = ProjectResolutionFacade(
-                "facadeForSdk", "sdk ${settings.sdk}",
-                project, sdkContext, settings,
-                moduleFilter = { it is SdkInfo },
-                dependencies = listOf(
-                       LibraryModificationTracker.getInstance(project),
-                       ProjectRootModificationTracker.getInstance(project)
-                ),
-                invalidateOnOOCB = false,
-                reuseDataFrom = null
+            "facadeForSdk", "sdk ${settings.sdk}",
+            project, sdkContext, settings,
+            moduleFilter = { it is SdkInfo },
+            dependencies = listOf(
+                LibraryModificationTracker.getInstance(project),
+                ProjectRootModificationTracker.getInstance(project)
+            ),
+            invalidateOnOOCB = false,
+            reuseDataFrom = null
         )
 
         private val librariesContext = sdkContext.contextWithNewLockAndCompositeExceptionTracker()
         val facadeForLibraries = ProjectResolutionFacade(
-                "facadeForLibraries", "project libraries for platform ${settings.sdk}",
-                project, librariesContext, settings,
-                reuseDataFrom = facadeForSdk,
-                moduleFilter = { it is LibraryInfo },
-                invalidateOnOOCB = false,
-                dependencies = listOf(
-                        LibraryModificationTracker.getInstance(project),
-                        ProjectRootModificationTracker.getInstance(project)
-                )
+            "facadeForLibraries", "project libraries for platform ${settings.sdk}",
+            project, librariesContext, settings,
+            reuseDataFrom = facadeForSdk,
+            moduleFilter = { it is LibraryInfo },
+            invalidateOnOOCB = false,
+            dependencies = listOf(
+                LibraryModificationTracker.getInstance(project),
+                ProjectRootModificationTracker.getInstance(project)
+            )
         )
 
         private val modulesContext = librariesContext.contextWithNewLockAndCompositeExceptionTracker()
         val facadeForModules = ProjectResolutionFacade(
-                "facadeForModules", "project source roots and libraries for platform ${settings.platform}",
-                project, modulesContext, settings,
-                reuseDataFrom = facadeForLibraries,
-                moduleFilter = { !it.isLibraryClasses() },
-                dependencies = listOf(
-                        LibraryModificationTracker.getInstance(project),
-                        ProjectRootModificationTracker.getInstance(project)
-                )
+            "facadeForModules", "project source roots and libraries for platform ${settings.platform}",
+            project, modulesContext, settings,
+            reuseDataFrom = facadeForLibraries,
+            moduleFilter = { !it.isLibraryClasses() },
+            dependencies = listOf(
+                LibraryModificationTracker.getInstance(project),
+                ProjectRootModificationTracker.getInstance(project)
+            )
         )
     }
 
     private fun IdeaModuleInfo.supportsAdditionalBuiltInsMembers(): Boolean {
         return IDELanguageSettingsProvider
-                .getLanguageVersionSettings(this, project)
-                .supportsFeature(LanguageFeature.AdditionalBuiltInsMembers)
+            .getLanguageVersionSettings(this, project)
+            .supportsFeature(LanguageFeature.AdditionalBuiltInsMembers)
     }
 
     private fun globalFacade(settings: PlatformAnalysisSettings) =
-            getOrBuildGlobalFacade(settings).facadeForModules
+        getOrBuildGlobalFacade(settings).facadeForModules
 
     private fun librariesFacade(settings: PlatformAnalysisSettings) = getOrBuildGlobalFacade(settings).facadeForLibraries
 
@@ -182,32 +182,34 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
             ModificationTracker {
                 files.sumByLong { it.outOfBlockModificationCount }
             }
-        }
-        else {
+        } else {
             ModificationTracker {
                 files.sumByLong { it.outOfBlockModificationCount + it.modificationStamp }
             }
         }
-        val dependenciesForSyntheticFileCache = listOf(PsiModificationTracker.OUT_OF_CODE_BLOCK_MODIFICATION_COUNT, filesModificationTracker)
-        val resolverDebugName = "completion/highlighting in $syntheticFileModule for files ${files.joinToString { it.name }} for platform $targetPlatform"
+        val dependenciesForSyntheticFileCache =
+            listOf(PsiModificationTracker.OUT_OF_CODE_BLOCK_MODIFICATION_COUNT, filesModificationTracker)
+        val resolverDebugName =
+            "completion/highlighting in $syntheticFileModule for files ${files.joinToString { it.name }} for platform $targetPlatform"
 
-        fun makeProjectResolutionFacade(debugName: String,
-                                        globalContext: GlobalContextImpl,
-                                        reuseDataFrom: ProjectResolutionFacade? = null,
-                                        moduleFilter: (IdeaModuleInfo) -> Boolean = { true },
-                                        allModules: Collection<IdeaModuleInfo>? = null
+        fun makeProjectResolutionFacade(
+            debugName: String,
+            globalContext: GlobalContextImpl,
+            reuseDataFrom: ProjectResolutionFacade? = null,
+            moduleFilter: (IdeaModuleInfo) -> Boolean = { true },
+            allModules: Collection<IdeaModuleInfo>? = null
         ): ProjectResolutionFacade {
             return ProjectResolutionFacade(
-                    debugName,
-                    resolverDebugName,
-                    project,
-                    globalContext,
-                    settings,
-                    syntheticFiles = files,
-                    reuseDataFrom = reuseDataFrom,
-                    moduleFilter = moduleFilter,
-                    dependencies = dependenciesForSyntheticFileCache,
-                    allModules = allModules
+                debugName,
+                resolverDebugName,
+                project,
+                globalContext,
+                settings,
+                syntheticFiles = files,
+                reuseDataFrom = reuseDataFrom,
+                moduleFilter = moduleFilter,
+                dependencies = dependenciesForSyntheticFileCache,
+                allModules = allModules
             )
         }
 
@@ -217,10 +219,10 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
                 val modulesFacade = globalFacade(settings)
                 val globalContext = modulesFacade.globalContext.contextWithNewLockAndCompositeExceptionTracker()
                 makeProjectResolutionFacade(
-                        "facadeForSynthetic in ModuleSourceInfo",
-                        globalContext,
-                        reuseDataFrom = modulesFacade,
-                        moduleFilter = { it in dependentModules }
+                    "facadeForSynthetic in ModuleSourceInfo",
+                    globalContext,
+                    reuseDataFrom = modulesFacade,
+                    moduleFilter = { it in dependentModules }
                 )
             }
 
@@ -228,11 +230,11 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
                 val facadeForScriptDependencies = getFacadeForScriptDependencies(syntheticFileModule)
                 val globalContext = facadeForScriptDependencies.globalContext.contextWithNewLockAndCompositeExceptionTracker()
                 makeProjectResolutionFacade(
-                        "facadeForSynthetic in ScriptModuleInfo",
-                        globalContext,
-                        reuseDataFrom = facadeForScriptDependencies,
-                        allModules = syntheticFileModule.dependencies(),
-                        moduleFilter = { it == syntheticFileModule }
+                    "facadeForSynthetic in ScriptModuleInfo",
+                    globalContext,
+                    reuseDataFrom = facadeForScriptDependencies,
+                    allModules = syntheticFileModule.dependencies(),
+                    moduleFilter = { it == syntheticFileModule }
                 )
             }
             syntheticFileModule is ScriptDependenciesModuleInfo -> {
@@ -243,11 +245,11 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
                 val facadeForScriptDependencies = createFacadeForScriptDependencies(syntheticFileModule.binariesModuleInfo, files)
                 val globalContext = facadeForScriptDependencies.globalContext.contextWithNewLockAndCompositeExceptionTracker()
                 makeProjectResolutionFacade(
-                        "facadeForSynthetic in ScriptDependenciesSourceModuleInfo",
-                        globalContext,
-                        reuseDataFrom = facadeForScriptDependencies,
-                        allModules = syntheticFileModule.dependencies(),
-                        moduleFilter = { it == syntheticFileModule }
+                    "facadeForSynthetic in ScriptDependenciesSourceModuleInfo",
+                    globalContext,
+                    reuseDataFrom = facadeForScriptDependencies,
+                    allModules = syntheticFileModule.dependencies(),
+                    moduleFilter = { it == syntheticFileModule }
                 )
             }
 
@@ -255,10 +257,10 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
                 val librariesFacade = librariesFacade(settings)
                 val globalContext = librariesFacade.globalContext.contextWithNewLockAndCompositeExceptionTracker()
                 makeProjectResolutionFacade(
-                        "facadeForSynthetic in LibrarySourceInfo or NotUnderContentRootModuleInfo",
-                        globalContext,
-                        reuseDataFrom = librariesFacade,
-                        moduleFilter = { it == syntheticFileModule }
+                    "facadeForSynthetic in LibrarySourceInfo or NotUnderContentRootModuleInfo",
+                    globalContext,
+                    reuseDataFrom = librariesFacade,
+                    moduleFilter = { it == syntheticFileModule }
                 )
             }
 
@@ -269,8 +271,8 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
                 LOG.warn("Creating cache with synthetic files ($files) in classes of library $syntheticFileModule")
                 val globalContext = GlobalContext()
                 makeProjectResolutionFacade(
-                        "facadeForSynthetic for file under both classes and root",
-                        globalContext
+                    "facadeForSynthetic for file under both classes and root",
+                    globalContext
                 )
             }
 
@@ -280,32 +282,62 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
 
     private val suppressAnnotationShortName = KotlinBuiltIns.FQ_NAMES.suppress.shortName().identifier
     private val kotlinSuppressCache: CachedValue<KotlinSuppressCache> = CachedValuesManager.getManager(project).createCachedValue({
-        CachedValueProvider.Result<KotlinSuppressCache>(object : KotlinSuppressCache() {
-            override fun getSuppressionAnnotations(annotated: KtAnnotated): List<AnnotationDescriptor> {
-                if (annotated.annotationEntries.none {
-                        it.calleeExpression?.text?.endsWith(suppressAnnotationShortName) ?: false }) {
-                    // Avoid running resolve heuristics
-                    // TODO: Check aliases in imports
-                    return emptyList()
-                }
+                                                                                                                                      CachedValueProvider.Result<KotlinSuppressCache>(
+                                                                                                                                          object :
+                                                                                                                                              KotlinSuppressCache() {
+                                                                                                                                              override fun getSuppressionAnnotations(
+                                                                                                                                                  annotated: KtAnnotated
+                                                                                                                                              ): List<AnnotationDescriptor> {
+                                                                                                                                                  if (annotated.annotationEntries.none {
+                                                                                                                                                          it.calleeExpression?.text?.endsWith(
+                                                                                                                                                              suppressAnnotationShortName
+                                                                                                                                                          )
+                                                                                                                                                                  ?: false
+                                                                                                                                                      }) {
+                                                                                                                                                      // Avoid running resolve heuristics
+                                                                                                                                                      // TODO: Check aliases in imports
+                                                                                                                                                      return emptyList()
+                                                                                                                                                  }
 
-                val context = when (annotated) {
-                    is KtFile -> annotated.fileAnnotationList?.analyze(BodyResolveMode.PARTIAL) ?: return emptyList()
-                    is KtModifierListOwner -> annotated.modifierList?.analyze(BodyResolveMode.PARTIAL) ?: return emptyList()
-                    else -> annotated.analyze(BodyResolveMode.PARTIAL)
-                }
+                                                                                                                                                  val context =
+                                                                                                                                                      when (annotated) {
+                                                                                                                                                          is KtFile -> annotated.fileAnnotationList?.analyze(
+                                                                                                                                                              BodyResolveMode.PARTIAL
+                                                                                                                                                          )
+                                                                                                                                                                  ?: return emptyList()
+                                                                                                                                                          is KtModifierListOwner -> annotated.modifierList?.analyze(
+                                                                                                                                                              BodyResolveMode.PARTIAL
+                                                                                                                                                          )
+                                                                                                                                                                  ?: return emptyList()
+                                                                                                                                                          else -> annotated.analyze(
+                                                                                                                                                              BodyResolveMode.PARTIAL
+                                                                                                                                                          )
+                                                                                                                                                      }
 
-                val annotatedDescriptor = context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, annotated)
+                                                                                                                                                  val annotatedDescriptor =
+                                                                                                                                                      context.get(
+                                                                                                                                                          BindingContext.DECLARATION_TO_DESCRIPTOR,
+                                                                                                                                                          annotated
+                                                                                                                                                      )
 
-                return if (annotatedDescriptor != null) {
-                    annotatedDescriptor.annotations.toList()
-                }
-                else {
-                    annotated.annotationEntries.mapNotNull { context.get(BindingContext.ANNOTATION, it) }
-                }
-            }
-        }, LibraryModificationTracker.getInstance(project), PsiModificationTracker.MODIFICATION_COUNT)
-    }, false)
+                                                                                                                                                  return if (annotatedDescriptor != null) {
+                                                                                                                                                      annotatedDescriptor.annotations.toList()
+                                                                                                                                                  } else {
+                                                                                                                                                      annotated.annotationEntries.mapNotNull {
+                                                                                                                                                          context.get(
+                                                                                                                                                              BindingContext.ANNOTATION,
+                                                                                                                                                              it
+                                                                                                                                                          )
+                                                                                                                                                      }
+                                                                                                                                                  }
+                                                                                                                                              }
+                                                                                                                                          },
+                                                                                                                                          LibraryModificationTracker.getInstance(
+                                                                                                                                              project
+                                                                                                                                          ),
+                                                                                                                                          PsiModificationTracker.MODIFICATION_COUNT
+                                                                                                                                      )
+                                                                                                                                  }, false)
 
     private val syntheticFileCachesLock = Any()
 
@@ -335,8 +367,7 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
         return if (notInSourceFiles.isNotEmpty()) {
             val projectFacade = getFacadeForSyntheticFiles(notInSourceFiles)
             ResolutionFacadeImpl(projectFacade, moduleInfo)
-        }
-        else {
+        } else {
             val platform = TargetPlatformDetector.getPlatform(file)
             getResolutionFacadeByModuleInfo(moduleInfo, platform)
         }
@@ -356,7 +387,7 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
     }
 
     override fun getResolutionFacadeByModuleInfo(moduleInfo: ModuleInfo, platform: TargetPlatform): ResolutionFacade? =
-            (moduleInfo as? IdeaModuleInfo)?.let { getResolutionFacadeByModuleInfo(it, platform) }
+        (moduleInfo as? IdeaModuleInfo)?.let { getResolutionFacadeByModuleInfo(it, platform) }
 
     private fun Collection<KtFile>.filterNotInProjectSource(moduleInfo: IdeaModuleInfo) = mapNotNull {
         if (it is KtCodeFragment) it.getContextFile() else it
@@ -367,7 +398,7 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
     private fun KtCodeFragment.getContextFile(): KtFile? {
         val contextElement = context ?: return null
         val contextFile = (contextElement as? KtElement)?.containingKtFile
-                          ?: throw AssertionError("Analyzing kotlin code fragment of type ${this::class.java} with java context of type ${contextElement::class.java}")
+                ?: throw AssertionError("Analyzing kotlin code fragment of type ${this::class.java} with java context of type ${contextElement::class.java}")
         return if (contextFile is KtCodeFragment) contextFile.getContextFile() else contextFile
     }
 }
