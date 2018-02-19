@@ -29,7 +29,7 @@ fun provideLambdaReturnValueHints(expression: KtExpression): List<InlayInfo> {
 
     val bindingContext = expression.analyze()
     if (expression.isUsedAsResultOfLambda(bindingContext)) {
-        return listOf(InlayInfo("$TYPE_INFO_PREFIX↰", expression.startOffset))
+        return listOf(InlayInfo("$TYPE_INFO_PREFIX^", expression.startOffset))
     }
     return emptyList()
 }
