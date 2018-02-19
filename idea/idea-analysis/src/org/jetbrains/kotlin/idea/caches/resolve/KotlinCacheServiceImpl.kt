@@ -280,63 +280,54 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
     }
 
     private val suppressAnnotationShortName = KotlinBuiltIns.FQ_NAMES.suppress.shortName().identifier
-    private val kotlinSuppressCache: CachedValue<KotlinSuppressCache> = CachedValuesManager.getManager(project).createCachedValue({
-                                                                                                                                      CachedValueProvider.Result<KotlinSuppressCache>(
-                                                                                                                                          object :
-                                                                                                                                              KotlinSuppressCache() {
-                                                                                                                                              override fun getSuppressionAnnotations(
-                                                                                                                                                  annotated: KtAnnotated
-                                                                                                                                              ): List<AnnotationDescriptor> {
-                                                                                                                                                  if (annotated.annotationEntries.none {
-                                                                                                                                                          it.calleeExpression?.text?.endsWith(
-                                                                                                                                                              suppressAnnotationShortName
-                                                                                                                                                          )
-                                                                                                                                                                  ?: false
-                                                                                                                                                      }) {
-                                                                                                                                                      // Avoid running resolve heuristics
-                                                                                                                                                      // TODO: Check aliases in imports
-                                                                                                                                                      return emptyList()
-                                                                                                                                                  }
+    private val kotlinSuppressCache: CachedValue<KotlinSuppressCache> = CachedValuesManager.getManager(project).createCachedValue(
+        {
+            CachedValueProvider.Result<KotlinSuppressCache>(
+                object : KotlinSuppressCache() {
+                    override fun getSuppressionAnnotations(annotated: KtAnnotated): List<AnnotationDescriptor> {
+                        if (annotated.annotationEntries.none {
+                                it.calleeExpression?.text?.endsWith(suppressAnnotationShortName) == true
+                            }
+                        ) {
+                            // Avoid running resolve heuristics
+                            // TODO: Check aliases in imports
+                            return emptyList()
+                        }
 
-                                                                                                                                                  val context =
-                                                                                                                                                      when (annotated) {
-                                                                                                                                                          is KtFile -> annotated.fileAnnotationList?.analyze(
-                                                                                                                                                              BodyResolveMode.PARTIAL
-                                                                                                                                                          )
-                                                                                                                                                                  ?: return emptyList()
-                                                                                                                                                          is KtModifierListOwner -> annotated.modifierList?.analyze(
-                                                                                                                                                              BodyResolveMode.PARTIAL
-                                                                                                                                                          )
-                                                                                                                                                                  ?: return emptyList()
-                                                                                                                                                          else -> annotated.analyze(
-                                                                                                                                                              BodyResolveMode.PARTIAL
-                                                                                                                                                          )
-                                                                                                                                                      }
+                        val context =
+                            when (annotated) {
+                                is KtFile -> {
+                                    annotated.fileAnnotationList?.analyze(BodyResolveMode.PARTIAL)
+                                            ?: return emptyList()
+                                }
+                                is KtModifierListOwner -> {
+                                    annotated.modifierList?.analyze(BodyResolveMode.PARTIAL)
+                                            ?: return emptyList()
+                                }
+                                else ->
+                                    annotated.analyze(BodyResolveMode.PARTIAL)
+                            }
 
-                                                                                                                                                  val annotatedDescriptor =
-                                                                                                                                                      context.get(
-                                                                                                                                                          BindingContext.DECLARATION_TO_DESCRIPTOR,
-                                                                                                                                                          annotated
-                                                                                                                                                      )
+                        val annotatedDescriptor = context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, annotated)
 
-                                                                                                                                                  return if (annotatedDescriptor != null) {
-                                                                                                                                                      annotatedDescriptor.annotations.toList()
-                                                                                                                                                  } else {
-                                                                                                                                                      annotated.annotationEntries.mapNotNull {
-                                                                                                                                                          context.get(
-                                                                                                                                                              BindingContext.ANNOTATION,
-                                                                                                                                                              it
-                                                                                                                                                          )
-                                                                                                                                                      }
-                                                                                                                                                  }
-                                                                                                                                              }
-                                                                                                                                          },
-                                                                                                                                          LibraryModificationTracker.getInstance(
-                                                                                                                                              project
-                                                                                                                                          ),
-                                                                                                                                          PsiModificationTracker.MODIFICATION_COUNT
-                                                                                                                                      )
-                                                                                                                                  }, false)
+                        if (annotatedDescriptor != null) {
+                            return annotatedDescriptor.annotations.toList()
+                        }
+
+                        return annotated.annotationEntries.mapNotNull {
+                            context.get(
+                                BindingContext.ANNOTATION,
+                                it
+                            )
+                        }
+                    }
+                },
+                LibraryModificationTracker.getInstance(project),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
+        },
+        false
+    )
 
     private val syntheticFileCachesLock = Any()
 
