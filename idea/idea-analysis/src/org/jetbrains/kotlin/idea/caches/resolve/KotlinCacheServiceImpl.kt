@@ -83,8 +83,10 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
             }
         }
 
-    private fun getFacadeForScriptDependencies(scriptModuleInfo: ScriptModuleInfo) = synchronized(facadesForScriptDependencies) {
-        facadesForScriptDependencies.get(scriptModuleInfo)
+    private fun getFacadeForScriptDependencies(scriptModuleInfo: ScriptModuleInfo): ProjectResolutionFacade {
+        return synchronized(facadesForScriptDependencies) {
+            facadesForScriptDependencies.get(scriptModuleInfo)
+        }
     }
 
     private fun createFacadeForScriptDependencies(
@@ -93,12 +95,12 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
     ): ProjectResolutionFacade {
         val sdk = findJdk(dependenciesModuleInfo.scriptModuleInfo?.externalDependencies, project)
         val platform = JvmPlatform // TODO: Js scripts?
-        val facadeKey = PlatformAnalysisSettings(platform, sdk, true)
-        val sdkFacade = GlobalFacade(facadeKey).facadeForSdk
+        val settings = PlatformAnalysisSettings(platform, sdk, true)
+        val sdkFacade = GlobalFacade(settings).facadeForSdk
         val globalContext = sdkFacade.globalContext.contextWithNewLockAndCompositeExceptionTracker()
         return ProjectResolutionFacade(
             "facadeForScriptDependencies", "dependencies of scripts",
-            project, globalContext, facadeKey,
+            project, globalContext, settings,
             reuseDataFrom = sdkFacade,
             allModules = dependenciesModuleInfo.dependencies(),
             //TODO: provide correct trackers
@@ -108,6 +110,7 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
                 ScriptDependenciesModificationTracker.getInstance(project)
             ),
             moduleFilter = { it == dependenciesModuleInfo },
+            invalidateOnOOCB = true,
             syntheticFiles = syntheticFiles
         )
     }
@@ -149,7 +152,8 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
             dependencies = listOf(
                 LibraryModificationTracker.getInstance(project),
                 ProjectRootModificationTracker.getInstance(project)
-            )
+            ),
+            invalidateOnOOCB = true
         )
     }
 
@@ -208,6 +212,7 @@ class KotlinCacheServiceImpl(val project: Project) : KotlinCacheService {
                 reuseDataFrom = reuseDataFrom,
                 moduleFilter = moduleFilter,
                 dependencies = dependenciesForSyntheticFileCache,
+                invalidateOnOOCB = true,
                 allModules = allModules
             )
         }

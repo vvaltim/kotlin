@@ -41,7 +41,7 @@ internal class ProjectResolutionFacade(
     val reuseDataFrom: ProjectResolutionFacade?,
     val moduleFilter: (IdeaModuleInfo) -> Boolean,
     val dependencies: List<Any>,
-    private val invalidateOnOOCB: Boolean = true,
+    private val invalidateOnOOCB: Boolean,
     val syntheticFiles: Collection<KtFile> = listOf(),
     val allModules: Collection<IdeaModuleInfo>? = null // null means create resolvers for modules from idea model
 ) {
