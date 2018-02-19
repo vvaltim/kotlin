@@ -344,9 +344,9 @@ private fun removeDuplicates(roots: List<POrderRoot>): List<POrderRoot> {
     return result.toList()
 }
 
-private data class DependencyInfo(val configuration: ResolvedConfiguration, val scope: Scope, val dependency: ResolvedDependency)
+data class DependencyInfo(val configuration: ResolvedConfiguration, val scope: Scope, val dependency: ResolvedDependency)
 
-private fun List<Pair<ResolvedConfiguration, Scope>>.collectDependencies(): List<DependencyInfo> {
+fun List<Pair<ResolvedConfiguration, Scope>>.collectDependencies(): List<DependencyInfo> {
     val dependencies = mutableListOf<DependencyInfo>()
     val unprocessed = LinkedList<DependencyInfo>()
 
