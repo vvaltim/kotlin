@@ -23,7 +23,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.kotlin.asJava.DuplicateJvmSignatureUtilKt;
-import org.jetbrains.kotlin.idea.caches.resolve.GetModuleInfoKt;
+import org.jetbrains.kotlin.idea.caches.project.GetModuleInfoKt;
 import org.jetbrains.kotlin.idea.caches.resolve.ResolutionUtils;
 import org.jetbrains.kotlin.idea.project.TargetPlatformDetector;
 import org.jetbrains.kotlin.idea.util.ProjectRootsUtil;

@@ -3,9 +3,10 @@
  * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.idea.caches.resolve
+package org.jetbrains.kotlin.idea.caches.project
 
-import com.intellij.facet.*
+import com.intellij.facet.FacetTypeRegistry
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.externalSystem.service.project.IdeModifiableModelsProvider
 import com.intellij.openapi.externalSystem.service.project.IdeModifiableModelsProviderImpl
 import com.intellij.openapi.module.Module
@@ -28,7 +29,6 @@ import org.jetbrains.kotlin.analyzer.ModuleInfo
 import org.jetbrains.kotlin.analyzer.TrackableModuleInfo
 import org.jetbrains.kotlin.caches.resolve.LibraryModuleInfo
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.idea.caches.project.LibraryDependenciesCache
 import org.jetbrains.kotlin.idea.configuration.BuildSystemType
 import org.jetbrains.kotlin.idea.configuration.getBuildSystemType
 import org.jetbrains.kotlin.idea.facet.KotlinFacetType
@@ -44,6 +44,8 @@ import org.jetbrains.kotlin.resolve.TargetPlatform
 import org.jetbrains.kotlin.resolve.jvm.GlobalSearchScopeWithModuleSources
 import org.jetbrains.kotlin.utils.addIfNotNull
 import java.util.*
+
+internal val LOG = Logger.getInstance(IdeaModuleInfo::class.java)
 
 interface IdeaModuleInfo : ModuleInfo {
     fun contentScope(): GlobalSearchScope
@@ -146,7 +148,8 @@ interface ModuleSourceInfo : IdeaModuleInfo, TrackableModuleInfo {
         KotlinModuleModificationTracker(module)
 }
 
-sealed class ModuleSourceInfoWithExpectedBy(private val forProduction: Boolean) : ModuleSourceInfo {
+sealed class ModuleSourceInfoWithExpectedBy(private val forProduction: Boolean) :
+    ModuleSourceInfo {
     override val expectedBy: ModuleSourceInfo?
         get() {
             val modelsProvider = IdeModifiableModelsProviderImpl(module.project)
@@ -205,8 +208,12 @@ data class ModuleTestSourceInfo internal constructor(
 
 internal fun ModuleSourceInfo.isTests() = this is ModuleTestSourceInfo
 
-fun Module.productionSourceInfo(): ModuleProductionSourceInfo? = if (hasProductionRoots()) ModuleProductionSourceInfo(this) else null
-fun Module.testSourceInfo(): ModuleTestSourceInfo? = if (hasTestRoots()) ModuleTestSourceInfo(this) else null
+fun Module.productionSourceInfo(): ModuleProductionSourceInfo? = if (hasProductionRoots()) ModuleProductionSourceInfo(
+    this
+) else null
+fun Module.testSourceInfo(): ModuleTestSourceInfo? = if (hasTestRoots()) ModuleTestSourceInfo(
+    this
+) else null
 
 internal fun Module.correspondingModuleInfos(): List<ModuleSourceInfo> = listOf(testSourceInfo(), productionSourceInfo()).filterNotNull()
 
@@ -255,7 +262,8 @@ private class ModuleTestSourceScope(module: Module) : ModuleSourceScope(module) 
     override fun toString() = "ModuleTestSourceScope($module)"
 }
 
-class LibraryInfo(val project: Project, val library: Library) : IdeaModuleInfo, LibraryModuleInfo, BinaryModuleInfo {
+class LibraryInfo(val project: Project, val library: Library) : IdeaModuleInfo, LibraryModuleInfo,
+    BinaryModuleInfo {
     override val moduleOrigin: ModuleOrigin
         get() = ModuleOrigin.LIBRARY
 
@@ -270,7 +278,12 @@ class LibraryInfo(val project: Project, val library: Library) : IdeaModuleInfo, 
         val (libraries, sdks) = LibraryDependenciesCache.getInstance(project).getLibrariesAndSdksUsedWith(library)
 
         sdks.mapTo(result) { SdkInfo(project, it) }
-        libraries.filter { it is LibraryEx && !it.isDisposed }.mapTo(result) { LibraryInfo(project, it) }
+        libraries.filter { it is LibraryEx && !it.isDisposed }.mapTo(result) {
+            LibraryInfo(
+                project,
+                it
+            )
+        }
 
         return result.toList()
     }
@@ -294,11 +307,16 @@ class LibraryInfo(val project: Project, val library: Library) : IdeaModuleInfo, 
     override fun hashCode(): Int = 43 * library.hashCode()
 }
 
-data class LibrarySourceInfo(val project: Project, val library: Library) : IdeaModuleInfo, SourceForBinaryModuleInfo {
+data class LibrarySourceInfo(val project: Project, val library: Library) : IdeaModuleInfo,
+    SourceForBinaryModuleInfo {
 
     override val name: Name = Name.special("<sources for library ${library.name}>")
 
-    override fun sourceScope(): GlobalSearchScope = KotlinSourceFilterScope.librarySources(LibrarySourceScope(project, library), project)
+    override fun sourceScope(): GlobalSearchScope = KotlinSourceFilterScope.librarySources(
+        LibrarySourceScope(
+            project,
+            library
+        ), project)
 
     override fun modulesWhoseInternalsAreVisible(): Collection<ModuleInfo> {
         return listOf(LibraryInfo(project, library))
