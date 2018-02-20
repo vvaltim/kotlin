@@ -12,7 +12,7 @@ class PFile(val path: File, val text: String) {
 
 fun PFile(path: File, xml: xml) = PFile(path, xml.toString())
 
-fun render(project: PProject, extraLibraries: List<PLibrary> = emptyList()): List<PFile> {
+fun render(project: PProject): List<PFile> {
     val files = mutableListOf<PFile>()
 
     files += renderModulesFile(project)
