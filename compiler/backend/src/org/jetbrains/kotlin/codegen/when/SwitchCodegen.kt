@@ -1,129 +1,106 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the license/LICENSE.txt file.
  */
 
-package org.jetbrains.kotlin.codegen.when;
+package org.jetbrains.kotlin.codegen.`when`
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.jetbrains.kotlin.codegen.ExpressionCodegen;
-import org.jetbrains.kotlin.codegen.FrameMap;
-import org.jetbrains.kotlin.psi.KtWhenEntry;
-import org.jetbrains.kotlin.psi.KtWhenExpression;
-import org.jetbrains.kotlin.resolve.BindingContext;
-import org.jetbrains.kotlin.resolve.constants.ConstantValue;
-import org.jetbrains.kotlin.resolve.constants.NullValue;
-import org.jetbrains.kotlin.types.KotlinType;
-import org.jetbrains.kotlin.types.TypeUtils;
-import org.jetbrains.org.objectweb.asm.Label;
-import org.jetbrains.org.objectweb.asm.Type;
-import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter;
+import org.jetbrains.kotlin.codegen.ExpressionCodegen
+import org.jetbrains.kotlin.psi.KtWhenExpression
+import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.constants.ConstantValue
+import org.jetbrains.kotlin.resolve.constants.NullValue
+import org.jetbrains.kotlin.types.TypeUtils
+import org.jetbrains.org.objectweb.asm.Label
+import org.jetbrains.org.objectweb.asm.Type
+import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter
+import java.util.*
 
-import java.util.*;
+abstract class SwitchCodegen(
+    @JvmField
+    protected val expression: KtWhenExpression,
+    protected val isStatement: Boolean,
+    private val isExhaustive: Boolean,
+    @JvmField
+    protected val codegen: ExpressionCodegen,
+    subjectType: Type?
+) {
+    protected val bindingContext: BindingContext = codegen.bindingContext
 
-abstract public class SwitchCodegen {
-    protected final KtWhenExpression expression;
-    protected final boolean isStatement;
-    protected final boolean isExhaustive;
-    protected final ExpressionCodegen codegen;
-    protected final BindingContext bindingContext;
-    protected final Type subjectType;
-    protected final Type resultType;
-    protected final InstructionAdapter v;
+    @JvmField
+    protected val subjectType = subjectType ?: codegen.expressionType(expression.subjectExpression)
 
-    protected final NavigableMap<Integer, Label> transitionsTable = new TreeMap<>();
-    protected final List<Label> entryLabels = new ArrayList<>();
-    protected Label elseLabel = new Label();
-    protected Label endLabel = new Label();
-    protected Label defaultLabel;
+    protected val resultType: Type = if (isStatement) Type.VOID_TYPE else codegen.expressionType(expression)
 
-    protected final SwitchCodegenProvider switchCodegenProvider;
+    @JvmField
+    protected val v: InstructionAdapter = codegen.v
 
-    public SwitchCodegen(
-            @NotNull KtWhenExpression expression, boolean isStatement,
-            boolean isExhaustive, @NotNull ExpressionCodegen codegen,
-            @Nullable Type subjectType
-    ) {
-        this.expression = expression;
-        this.isStatement = isStatement;
-        this.isExhaustive = isExhaustive;
-        this.codegen = codegen;
-        this.bindingContext = codegen.getBindingContext();
-        this.switchCodegenProvider = new SwitchCodegenProvider(codegen);
+    @JvmField
+    protected val transitionsTable: NavigableMap<Int, Label> = TreeMap()
 
-        this.subjectType = subjectType != null ? subjectType : codegen.expressionType(expression.getSubjectExpression());
-        resultType = isStatement ? Type.VOID_TYPE : codegen.expressionType(expression);
-        v = codegen.v;
-    }
+    private val entryLabels: MutableList<Label> = ArrayList()
+    private var elseLabel = Label()
+    private var endLabel = Label()
+    protected lateinit var defaultLabel: Label
+
+    private val switchCodegenProvider = SwitchCodegenProvider(codegen)
 
     /**
      * Generates bytecode for entire when expression
      */
-    public void generate() {
-        prepareConfiguration();
+    open fun generate() {
+        prepareConfiguration()
 
-        boolean hasElse = expression.getElseExpression() != null;
+        val hasElse = expression.elseExpression != null
 
         // if there is no else-entry and it's statement then default --- endLabel
-        defaultLabel = (hasElse || !isStatement || isExhaustive) ? elseLabel : endLabel;
+        defaultLabel = if (hasElse || !isStatement || isExhaustive) elseLabel else endLabel
 
-        generateSubject();
+        generateSubject()
 
-        generateSwitchInstructionByTransitionsTable();
+        generateSwitchInstructionByTransitionsTable()
 
-        generateEntries();
+        generateEntries()
 
         // there is no else-entry but this is not statement, so we should return Unit
         if (!hasElse && (!isStatement || isExhaustive)) {
-            v.visitLabel(elseLabel);
-            codegen.putUnitInstanceOntoStackForNonExhaustiveWhen(expression, isStatement);
+            v.visitLabel(elseLabel)
+            codegen.putUnitInstanceOntoStackForNonExhaustiveWhen(expression, isStatement)
         }
 
-        codegen.markLineNumber(expression, isStatement);
-        v.mark(endLabel);
+        codegen.markLineNumber(expression, isStatement)
+        v.mark(endLabel)
     }
 
     /**
      * Sets up transitionsTable and maybe something else needed in a special case
      * Behaviour may be changed by overriding processConstant
      */
-    private void prepareConfiguration() {
-        for (KtWhenEntry entry : expression.getEntries()) {
-            Label entryLabel = new Label();
+    private fun prepareConfiguration() {
+        for (entry in expression.entries) {
+            val entryLabel = Label()
 
-            for (ConstantValue<?> constant : switchCodegenProvider.getConstantsFromEntry(entry)) {
-                if (constant instanceof NullValue) continue;
-                processConstant(constant, entryLabel);
+            for (constant in switchCodegenProvider.getConstantsFromEntry(entry)) {
+                if (constant is NullValue || constant == null) continue
+                processConstant(constant, entryLabel)
             }
 
-            if (entry.isElse()) {
-                elseLabel = entryLabel;
+            if (entry.isElse) {
+                elseLabel = entryLabel
             }
 
-            entryLabels.add(entryLabel);
+            entryLabels.add(entryLabel)
         }
     }
 
-    abstract protected void processConstant(
-            @NotNull ConstantValue<?> constant,
-            @NotNull Label entryLabel
-    );
+    protected abstract fun processConstant(
+        constant: ConstantValue<*>,
+        entryLabel: Label
+    )
 
-    protected void putTransitionOnce(int value, @NotNull Label entryLabel) {
+    protected fun putTransitionOnce(value: Int, entryLabel: Label) {
         if (!transitionsTable.containsKey(value)) {
-            transitionsTable.put(value, entryLabel);
+            transitionsTable[value] = entryLabel
         }
     }
 
@@ -132,104 +109,72 @@ abstract public class SwitchCodegen {
      * Default implementation just run codegen for actual subject of expression
      * May also gen nullability check if needed
      */
-    protected void generateSubject() {
-        codegen.gen(expression.getSubjectExpression(), subjectType);
+    protected open fun generateSubject() {
+        codegen.gen(expression.subjectExpression, subjectType)
     }
 
-    protected void generateNullCheckIfNeeded() {
-        assert expression.getSubjectExpression() != null : "subject expression can't be null";
-        KotlinType subjectJetType = bindingContext.getType(expression.getSubjectExpression());
-
-        assert subjectJetType != null : "subject type can't be null (i.e. void)";
+    protected fun generateNullCheckIfNeeded() {
+        assert(expression.subjectExpression != null) { "subject expression can't be null" }
+        val subjectJetType = bindingContext.getType(expression.subjectExpression!!) ?: error("subject type can't be null (i.e. void)")
 
         if (TypeUtils.isNullableType(subjectJetType)) {
-            int nullEntryIndex = findNullEntryIndex(expression);
-            Label nullLabel = nullEntryIndex == -1 ? defaultLabel : entryLabels.get(nullEntryIndex);
-            Label notNullLabel = new Label();
+            val nullEntryIndex = findNullEntryIndex(expression)
+            val nullLabel = if (nullEntryIndex == -1) defaultLabel else entryLabels[nullEntryIndex]
+            val notNullLabel = Label()
 
-            v.dup();
-            v.ifnonnull(notNullLabel);
-
-            v.pop();
-
-            v.goTo(nullLabel);
-
-            v.visitLabel(notNullLabel);
-        }
-    }
-
-    private int findNullEntryIndex(@NotNull KtWhenExpression expression) {
-        int entryIndex = 0;
-        for (KtWhenEntry entry : expression.getEntries()) {
-            for (ConstantValue<?> constant : switchCodegenProvider.getConstantsFromEntry(entry)) {
-                if (constant instanceof NullValue) {
-                    return entryIndex;
-                }
+            with(v) {
+                dup()
+                ifnonnull(notNullLabel)
+                pop()
+                goTo(nullLabel)
+                visitLabel(notNullLabel)
             }
-
-            entryIndex++;
         }
-
-        return -1;
     }
 
-    private void generateSwitchInstructionByTransitionsTable() {
-        int[] keys = new int[transitionsTable.size()];
-        Label[] labels = new Label[transitionsTable.size()];
-        int i = 0;
+    private fun findNullEntryIndex(expression: KtWhenExpression) =
+        expression.entries.withIndex().firstOrNull { (_, entry) ->
+            switchCodegenProvider.getConstantsFromEntry(entry).any { it is NullValue }
+        }?.index ?: -1
 
-        for (Map.Entry<Integer, Label> transition : transitionsTable.entrySet()) {
-            keys[i] = transition.getKey();
-            labels[i] = transition.getValue();
+    private fun generateSwitchInstructionByTransitionsTable() {
+        val keys = transitionsTable.keys.toIntArray()
 
-            i++;
+        val labelsNumber = keys.size
+        val maxValue = keys.last()
+        val minValue = keys.first()
+        val rangeLength = maxValue - minValue + 1
+
+        // In modern JVM implementations it shouldn't matter very much for runtime performance
+        // whether to choose lookupswitch or tableswitch.
+        // The only metric that really matters is bytecode size and here we can estimate:
+        // - lookupswitch: ~ 2 * labelsNumber
+        // - tableswitch: ~ rangeLength
+        if (2 * labelsNumber < rangeLength) {
+            val labels = transitionsTable.values.toTypedArray()
+            v.lookupswitch(defaultLabel, keys, labels)
+            return
         }
 
-        int nlabels = keys.length;
-        int hi = keys[nlabels - 1];
-        int lo = keys[0];
-
-        /*
-         * Heuristic estimation if it's better to use tableswitch or lookupswitch.
-         * From OpenJDK sources
-         */
-        long table_space_cost = 4 + ((long) hi - lo + 1); // words
-        long table_time_cost = 3; // comparisons
-        long lookup_space_cost = 3 + 2 * (long) nlabels;
-        //noinspection UnnecessaryLocalVariable
-        long lookup_time_cost = nlabels;
-
-        boolean useTableSwitch = nlabels > 0 &&
-                                 table_space_cost + 3 * table_time_cost <=
-                                 lookup_space_cost + 3 * lookup_time_cost;
-
-        if (!useTableSwitch) {
-            v.lookupswitch(defaultLabel, keys, labels);
-            return;
+        val sparseLabels = Array(rangeLength) { index ->
+            transitionsTable[index + minValue] ?: defaultLabel
         }
 
-        Label[] sparseLabels = new Label[hi - lo + 1];
-        Arrays.fill(sparseLabels, defaultLabel);
-
-        for (i = 0; i < keys.length; i++) {
-            sparseLabels[keys[i] - lo] = labels[i];
-        }
-
-        v.tableswitch(lo, hi, defaultLabel, sparseLabels);
+        v.tableswitch(minValue, maxValue, defaultLabel, *sparseLabels)
     }
 
-    protected void generateEntries() {
+    protected open fun generateEntries() {
         // resolving entries' entryLabels and generating entries' code
-        Iterator<Label> entryLabelsIterator = entryLabels.iterator();
-        for (KtWhenEntry entry : expression.getEntries()) {
-            v.visitLabel(entryLabelsIterator.next());
+        val entryLabelsIterator = entryLabels.iterator()
+        for (entry in expression.entries) {
+            v.visitLabel(entryLabelsIterator.next())
 
-            FrameMap.Mark mark = codegen.myFrameMap.mark();
-            codegen.gen(entry.getExpression(), resultType);
-            mark.dropTo();
+            val mark = codegen.myFrameMap.mark()
+            codegen.gen(entry.expression, resultType)
+            mark.dropTo()
 
-            if (!entry.isElse()) {
-                v.goTo(endLabel);
+            if (!entry.isElse) {
+                v.goTo(endLabel)
             }
         }
     }
